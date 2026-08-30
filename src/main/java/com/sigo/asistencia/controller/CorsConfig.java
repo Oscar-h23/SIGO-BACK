@@ -1,0 +1,2 @@
+package com.sigo.asistencia.controller; import org.springframework.beans.factory.annotation.Value; import org.springframework.context.annotation.Configuration; import org.springframework.web.servlet.config.annotation.*;
+@Configuration public class CorsConfig implements WebMvcConfigurer{@Value("${app.cors.allowed-origin}")String origin; public void addCorsMappings(CorsRegistry r){r.addMapping("/api/**").allowedOrigins(origin).allowedMethods("GET","POST","PUT","PATCH","DELETE","OPTIONS").allowedHeaders("*");}}
