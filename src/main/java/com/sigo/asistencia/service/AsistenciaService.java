@@ -79,7 +79,7 @@ public class AsistenciaService {
         /*
          * La cantidad programada viene del turno.
          */
-        int programados = turno.getPersonalProgramado();
+        int programados = request.programados();
 
         int presentes = request.presentes();
 
