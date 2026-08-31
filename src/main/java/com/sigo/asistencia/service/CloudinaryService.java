@@ -15,7 +15,17 @@ public class CloudinaryService {
 
     private final Cloudinary cloudinary;
 
+    // Mantiene compatibilidad con Asistencia
     public Map<String, Object> subirImagen(MultipartFile archivo) throws IOException {
+        return subirImagen(archivo, "sigo/asistencia");
+    }
+
+    // Permite elegir la carpeta para otros módulos
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> subirImagen(
+            MultipartFile archivo,
+            String folder
+    ) throws IOException {
 
         System.out.println("C1. Entrando a CloudinaryService");
 
@@ -35,32 +45,52 @@ public class CloudinaryService {
             );
         }
 
-        System.out.println("C3. Tipo válido: " + archivo.getContentType());
+        System.out.println(
+                "C3. Tipo válido: " + archivo.getContentType()
+        );
+
+        String carpeta = (folder == null || folder.isBlank())
+                ? "sigo"
+                : folder.trim();
+
+        System.out.println(
+                "C4. Subiendo a Cloudinary. Carpeta: " + carpeta
+        );
 
         try {
 
-            System.out.println("C4. Intentando subir a Cloudinary...");
-
-            Map resultado = cloudinary.uploader().upload(
+            Map<?, ?> resultado = cloudinary.uploader().upload(
                     archivo.getBytes(),
                     ObjectUtils.asMap(
-                            "folder", "sigo/asistencia",
+                            "folder", carpeta,
                             "resource_type", "image"
                     )
             );
 
             System.out.println("C5. CLOUDINARY FUNCIONÓ");
-            System.out.println("C6. Resultado: " + resultado);
+            System.out.println(
+                    "C6. public_id: " + resultado.get("public_id")
+            );
 
             return (Map<String, Object>) resultado;
 
         } catch (Exception e) {
 
-            System.err.println("========== ERROR CLOUDINARY ==========");
-            System.err.println("Tipo: " + e.getClass().getName());
-            System.err.println("Mensaje: " + e.getMessage());
+            System.err.println(
+                    "========== ERROR CLOUDINARY =========="
+            );
+            System.err.println(
+                    "Tipo: " + e.getClass().getName()
+            );
+            System.err.println(
+                    "Mensaje: " + e.getMessage()
+            );
+
             e.printStackTrace();
-            System.err.println("======================================");
+
+            System.err.println(
+                    "======================================"
+            );
 
             throw e;
         }
