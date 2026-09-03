@@ -2,6 +2,7 @@ package com.sigo.asistencia.controller;
 
 import com.sigo.asistencia.dto.AsistenciaRequest;
 import com.sigo.asistencia.dto.AsistenciaResponse;
+import com.sigo.asistencia.dto.AsistenciaUpdateRequest;
 import com.sigo.asistencia.dto.EvidenciaResponse;
 import com.sigo.asistencia.service.AsistenciaService;
 
@@ -27,7 +28,9 @@ public class AsistenciaController {
     private final AsistenciaService asistenciaService;
 
     /*
-     * Registrar asistencia
+     * =========================================================
+     * REGISTRAR ASISTENCIA
+     * =========================================================
      */
     @PostMapping
     public ResponseEntity<AsistenciaResponse> registrar(
@@ -40,31 +43,79 @@ public class AsistenciaController {
     }
 
     /*
-     * Listar asistencias
+     * =========================================================
+     * ACTUALIZAR ASISTENCIA
+     * =========================================================
      *
-     * Ejemplo:
+     * PUT /api/asistencias/1
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<AsistenciaResponse> actualizar(
+            @PathVariable Long id,
+            @Valid @RequestBody AsistenciaUpdateRequest request
+    ) {
+
+        return ResponseEntity.ok(
+                asistenciaService.actualizar(
+                        id,
+                        request
+                )
+        );
+    }
+
+    /*
+     * =========================================================
+     * LISTAR ASISTENCIAS
+     * =========================================================
+     *
+     * Ejemplos:
+     *
      * GET /api/asistencias
      *
-     * GET /api/asistencias?inicio=2026-08-01&fin=2026-08-31
+     * Por defecto:
+     * inicio = hoy
+     * fin = hoy
+     * plaza = todas
+     *
+     * GET /api/asistencias?plazaId=3
+     *
+     * GET /api/asistencias
+     * ?inicio=2026-09-01
+     * &fin=2026-09-02
+     *
+     * GET /api/asistencias
+     * ?inicio=2026-09-01
+     * &fin=2026-09-02
+     * &plazaId=3
      */
     @GetMapping
     public ResponseEntity<List<AsistenciaResponse>> listar(
+
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate inicio,
 
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate fin
+            LocalDate fin,
+
+            @RequestParam(required = false)
+            Long plazaId
     ) {
 
         return ResponseEntity.ok(
-                asistenciaService.listar(inicio, fin)
+                asistenciaService.listar(
+                        inicio,
+                        fin,
+                        plazaId
+                )
         );
     }
 
     /*
-     * Obtener por ID
+     * =========================================================
+     * OBTENER ASISTENCIA POR ID
+     * =========================================================
      */
     @GetMapping("/{id}")
     public ResponseEntity<AsistenciaResponse> obtenerPorId(
@@ -77,12 +128,16 @@ public class AsistenciaController {
     }
 
     /*
-     * Subir foto a Cloudinary
+     * =========================================================
+     * SUBIR EVIDENCIA
+     * =========================================================
      *
      * POST /api/asistencias/1/evidencias
      *
-     * Body -> form-data
-     * file -> imagen
+     * Body:
+     * form-data
+     *
+     * file = imagen
      */
     @PostMapping(
             value = "/{id}/evidencias",
@@ -94,7 +149,36 @@ public class AsistenciaController {
     ) throws IOException {
 
         return ResponseEntity.ok(
-                asistenciaService.guardarEvidencia(id, file)
+                asistenciaService.guardarEvidencia(
+                        id,
+                        file
+                )
         );
+    }
+
+    /*
+     * =========================================================
+     * ELIMINAR EVIDENCIA
+     * =========================================================
+     *
+     * DELETE
+     * /api/asistencias/1/evidencias/5
+     */
+    @DeleteMapping(
+            "/{asistenciaId}/evidencias/{evidenciaId}"
+    )
+    public ResponseEntity<Void> eliminarEvidencia(
+            @PathVariable Long asistenciaId,
+            @PathVariable Long evidenciaId
+    ) throws IOException {
+
+        asistenciaService.eliminarEvidencia(
+                asistenciaId,
+                evidenciaId
+        );
+
+        return ResponseEntity
+                .noContent()
+                .build();
     }
 }

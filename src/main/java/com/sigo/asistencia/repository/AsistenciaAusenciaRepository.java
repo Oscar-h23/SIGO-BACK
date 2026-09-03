@@ -14,9 +14,23 @@ public interface AsistenciaAusenciaRepository
         extends JpaRepository<AsistenciaAusencia, Long> {
 
  /*
-  * Obtener ausencias pertenecientes a una asistencia.
+  * Obtener ausencias pertenecientes
+  * a una asistencia.
   */
- List<AsistenciaAusencia> findByAsistenciaId(Long asistenciaId);
+ List<AsistenciaAusencia> findByAsistenciaId(
+         Long asistenciaId
+ );
+
+ /*
+  * Eliminar todas las ausencias de
+  * una asistencia.
+  *
+  * Se utilizará cuando se edite
+  * el registro de asistencia.
+  */
+ void deleteByAsistenciaId(
+         Long asistenciaId
+ );
 
  /*
   * Contar las ausencias agrupadas por motivo.

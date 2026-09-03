@@ -18,10 +18,33 @@ public interface AsistenciaRepository
          LocalDate fecha
  );
 
+ boolean existsByPlazaIdAndTurnoIdAndFechaAndIdNot(
+         Long plazaId,
+         Long turnoId,
+         LocalDate fecha,
+         Long id
+ );
+
+ /*
+  * Historial por rango de fechas.
+  * Se usa cuando:
+  * plazaId = null
+  * "Todas las plazas"
+  */
  List<AsistenciaRegistro>
- findByFechaBetweenOrderByFechaDesc(
+ findByFechaBetweenOrderByFechaDescIdDesc(
          LocalDate inicio,
          LocalDate fin
+ );
+
+ /*
+  * Historial por rango de fechas + plaza.
+  */
+ List<AsistenciaRegistro>
+ findByFechaBetweenAndPlazaIdOrderByFechaDescIdDesc(
+         LocalDate inicio,
+         LocalDate fin,
+         Long plazaId
  );
 
  @Query(

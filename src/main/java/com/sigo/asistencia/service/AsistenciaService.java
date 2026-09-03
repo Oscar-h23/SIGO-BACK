@@ -45,47 +45,70 @@ public class AsistenciaService {
         Plaza plaza = plazaRepository
                 .findById(request.plazaId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Plaza no encontrada")
+                        new ResourceNotFoundException(
+                                "Plaza no encontrada"
+                        )
                 );
 
         Turno turno = turnoRepository
                 .findById(request.turnoId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Turno no encontrado")
+                        new ResourceNotFoundException(
+                                "Turno no encontrado"
+                        )
                 );
 
         Trabajador controlador = trabajadorRepository
                 .findById(request.controladorId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Controlador no encontrado")
+                        new ResourceNotFoundException(
+                                "Controlador no encontrado"
+                        )
                 );
 
         validarControlador(controlador);
 
         /*
+         * Validar que el controlador pertenezca
+         * a la plaza seleccionada.
+         */
+        if (controlador.getPlaza() == null
+                || !controlador.getPlaza().getId().equals(plaza.getId())) {
+
+            throw new BusinessException(
+                    "El controlador seleccionado no pertenece a la plaza"
+            );
+        }
+
+        /*
          * Evitar duplicados por:
          * plaza + turno + fecha
          */
-        if (asistenciaRepository.existsByPlazaIdAndTurnoIdAndFecha(
-                request.plazaId(),
-                request.turnoId(),
-                request.fecha()
-        )) {
+        if (asistenciaRepository
+                .existsByPlazaIdAndTurnoIdAndFecha(
+                        request.plazaId(),
+                        request.turnoId(),
+                        request.fecha()
+                )) {
+
             throw new BusinessException(
                     "Ya existe una asistencia para esa plaza, turno y fecha"
             );
         }
 
-        /*
-         * La cantidad programada viene del turno.
-         */
         int programados = request.programados();
-
         int presentes = request.presentes();
+
+        if (programados < 0) {
+            throw new BusinessException(
+                    "La cantidad de programados no puede ser negativa"
+            );
+        }
 
         if (presentes < 0 || presentes > programados) {
             throw new BusinessException(
-                    "Los presentes deben estar entre 0 y " + programados
+                    "Los presentes deben estar entre 0 y "
+                            + programados
             );
         }
 
@@ -94,8 +117,13 @@ public class AsistenciaService {
                         ? List.of()
                         : request.ausencias();
 
-        int cantidadAusentes = programados - presentes;
+        int cantidadAusentes =
+                programados - presentes;
 
+        /*
+         * La cantidad de trabajadores registrados
+         * como ausentes debe coincidir con el total.
+         */
         if (ausencias.size() != cantidadAusentes) {
             throw new BusinessException(
                     "Debe registrar exactamente "
@@ -105,21 +133,24 @@ public class AsistenciaService {
         }
 
         /*
-         * Validar que no se repita un trabajador.
+         * Evitar que una misma persona aparezca
+         * varias veces como ausente.
          */
         Set<Long> trabajadoresUnicos =
                 ausencias.stream()
                         .map(AusenciaRequest::trabajadorId)
                         .collect(Collectors.toSet());
 
-        if (trabajadoresUnicos.size() != ausencias.size()) {
+        if (trabajadoresUnicos.size()
+                != ausencias.size()) {
+
             throw new BusinessException(
                     "No puede registrar al mismo trabajador ausente dos veces"
             );
         }
 
         /*
-         * Guardar asistencia principal.
+         * Guardar registro principal.
          */
         AsistenciaRegistro asistencia =
                 new AsistenciaRegistro();
@@ -133,24 +164,33 @@ public class AsistenciaService {
         asistencia.setNotas(request.notas());
 
         asistencia =
-                asistenciaRepository.saveAndFlush(asistencia);
+                asistenciaRepository.saveAndFlush(
+                        asistencia
+                );
 
         /*
          * Guardar ausencias.
          */
-        for (AusenciaRequest ausenciaRequest : ausencias) {
+        for (AusenciaRequest ausenciaRequest
+                : ausencias) {
 
             Trabajador trabajador =
                     trabajadorRepository
-                            .findById(ausenciaRequest.trabajadorId())
+                            .findById(
+                                    ausenciaRequest
+                                            .trabajadorId()
+                            )
                             .orElseThrow(() ->
                                     new ResourceNotFoundException(
                                             "Trabajador no encontrado: "
-                                                    + ausenciaRequest.trabajadorId()
+                                                    + ausenciaRequest
+                                                    .trabajadorId()
                                     )
                             );
 
-            if (!Boolean.TRUE.equals(trabajador.getActivo())) {
+            if (!Boolean.TRUE.equals(
+                    trabajador.getActivo()
+            )) {
                 throw new BusinessException(
                         "El trabajador "
                                 + trabajador.getCodigo()
@@ -158,13 +198,32 @@ public class AsistenciaService {
                 );
             }
 
+            /*
+             * Validar que el trabajador ausente
+             * pertenezca a la plaza seleccionada.
+             */
+            if (trabajador.getPlaza() == null
+                    || !trabajador.getPlaza()
+                    .getId()
+                    .equals(plaza.getId())) {
+
+                throw new BusinessException(
+                        "El trabajador "
+                                + trabajador.getNombreCompleto()
+                                + " no pertenece a la plaza seleccionada"
+                );
+            }
+
             MotivoAusencia motivo =
                     motivoRepository
-                            .findById(ausenciaRequest.motivoId())
+                            .findById(
+                                    ausenciaRequest.motivoId()
+                            )
                             .orElseThrow(() ->
                                     new ResourceNotFoundException(
                                             "Motivo no encontrado: "
-                                                    + ausenciaRequest.motivoId()
+                                                    + ausenciaRequest
+                                                    .motivoId()
                                     )
                             );
 
@@ -182,12 +241,13 @@ public class AsistenciaService {
         }
 
         /*
-         * Esto permite mantener compatibilidad con evidencias
-         * que ya vengan como URL desde el request.
+         * Mantener compatibilidad con evidencias
+         * que vengan directamente como URL.
          */
         if (request.evidencias() != null) {
 
-            for (String url : request.evidencias()) {
+            for (String url
+                    : request.evidencias()) {
 
                 if (url == null || url.isBlank()) {
                     continue;
@@ -196,15 +256,376 @@ public class AsistenciaService {
                 AsistenciaEvidencia evidencia =
                         new AsistenciaEvidencia();
 
-                evidencia.setAsistencia(asistencia);
+                evidencia.setAsistencia(
+                        asistencia
+                );
+
                 evidencia.setUrlArchivo(url);
                 evidencia.setTipo("foto");
 
-                evidenciaRepository.save(evidencia);
+                evidenciaRepository.save(
+                        evidencia
+                );
             }
         }
 
-        return obtenerPorId(asistencia.getId());
+        return obtenerPorId(
+                asistencia.getId()
+        );
+    }
+    /*
+     * =========================================================
+     * ACTUALIZAR ASISTENCIA
+     * =========================================================
+     */
+    @Transactional
+    public AsistenciaResponse actualizar(
+            Long id,
+            AsistenciaUpdateRequest request
+    ) {
+
+        /*
+         * Buscar asistencia existente.
+         */
+        AsistenciaRegistro asistencia =
+                asistenciaRepository
+                        .findById(id)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Asistencia no encontrada"
+                                )
+                        );
+
+        /*
+         * Buscar plaza.
+         */
+        Plaza plaza =
+                plazaRepository
+                        .findById(request.plazaId())
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Plaza no encontrada"
+                                )
+                        );
+
+        /*
+         * Buscar turno.
+         */
+        Turno turno =
+                turnoRepository
+                        .findById(request.turnoId())
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Turno no encontrado"
+                                )
+                        );
+
+        /*
+         * Buscar controlador.
+         */
+        Trabajador controlador =
+                trabajadorRepository
+                        .findById(request.controladorId())
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Controlador no encontrado"
+                                )
+                        );
+
+        /*
+         * Validar cargo y estado del controlador.
+         */
+        validarControlador(controlador);
+
+        /*
+         * Validar que el controlador pertenezca
+         * a la plaza seleccionada.
+         */
+        if (controlador.getPlaza() == null
+                || !controlador
+                .getPlaza()
+                .getId()
+                .equals(plaza.getId())) {
+
+            throw new BusinessException(
+                    "El controlador seleccionado no pertenece a la plaza"
+            );
+        }
+
+        /*
+         * Evitar duplicados.
+         *
+         * Busca otra asistencia con la misma:
+         * plaza + turno + fecha
+         *
+         * ignorando el registro que estamos editando.
+         */
+        if (asistenciaRepository
+                .existsByPlazaIdAndTurnoIdAndFechaAndIdNot(
+                        request.plazaId(),
+                        request.turnoId(),
+                        request.fecha(),
+                        id
+                )) {
+
+            throw new BusinessException(
+                    "Ya existe otra asistencia para esa plaza, turno y fecha"
+            );
+        }
+
+        int programados =
+                request.programados();
+
+        int presentes =
+                request.presentes();
+
+        /*
+         * Validar programados.
+         */
+        if (programados < 0) {
+
+            throw new BusinessException(
+                    "La cantidad de programados no puede ser negativa"
+            );
+        }
+
+        /*
+         * Validar presentes.
+         */
+        if (presentes < 0
+                || presentes > programados) {
+
+            throw new BusinessException(
+                    "Los presentes deben estar entre 0 y "
+                            + programados
+            );
+        }
+
+        /*
+         * Ausencias recibidas.
+         */
+        List<AusenciaRequest> ausencias =
+                request.ausencias() == null
+                        ? List.of()
+                        : request.ausencias();
+
+        int cantidadAusentes =
+                programados - presentes;
+
+        /*
+         * La cantidad de ausencias registradas
+         * debe coincidir con:
+         *
+         * programados - presentes
+         */
+        if (ausencias.size()
+                != cantidadAusentes) {
+
+            throw new BusinessException(
+                    "Debe registrar exactamente "
+                            + cantidadAusentes
+                            + " ausencia(s)"
+            );
+        }
+
+        /*
+         * Evitar trabajadores duplicados.
+         */
+        Set<Long> trabajadoresUnicos =
+                ausencias
+                        .stream()
+                        .map(
+                                AusenciaRequest::trabajadorId
+                        )
+                        .collect(
+                                Collectors.toSet()
+                        );
+
+        if (trabajadoresUnicos.size()
+                != ausencias.size()) {
+
+            throw new BusinessException(
+                    "No puede registrar al mismo trabajador ausente dos veces"
+            );
+        }
+
+        /*
+         * =====================================================
+         * VALIDAR TODAS LAS AUSENCIAS ANTES DE MODIFICAR
+         * =====================================================
+         *
+         * Es importante validar primero para evitar modificar
+         * parcialmente el registro.
+         */
+        for (AusenciaRequest ausenciaRequest
+                : ausencias) {
+
+            Trabajador trabajador =
+                    trabajadorRepository
+                            .findById(
+                                    ausenciaRequest
+                                            .trabajadorId()
+                            )
+                            .orElseThrow(() ->
+                                    new ResourceNotFoundException(
+                                            "Trabajador no encontrado: "
+                                                    + ausenciaRequest
+                                                    .trabajadorId()
+                                    )
+                            );
+
+            /*
+             * Trabajador activo.
+             */
+            if (!Boolean.TRUE.equals(
+                    trabajador.getActivo()
+            )) {
+
+                throw new BusinessException(
+                        "El trabajador "
+                                + trabajador.getCodigo()
+                                + " está inactivo"
+                );
+            }
+
+            /*
+             * Trabajador perteneciente
+             * a la plaza seleccionada.
+             */
+            if (trabajador.getPlaza() == null
+                    || !trabajador
+                    .getPlaza()
+                    .getId()
+                    .equals(plaza.getId())) {
+
+                throw new BusinessException(
+                        "El trabajador "
+                                + trabajador.getNombreCompleto()
+                                + " no pertenece a la plaza seleccionada"
+                );
+            }
+
+            /*
+             * Verificar que exista el motivo.
+             */
+            motivoRepository
+                    .findById(
+                            ausenciaRequest.motivoId()
+                    )
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Motivo no encontrado: "
+                                            + ausenciaRequest
+                                            .motivoId()
+                            )
+                    );
+        }
+
+        /*
+         * =====================================================
+         * ACTUALIZAR REGISTRO PRINCIPAL
+         * =====================================================
+         */
+        asistencia.setPlaza(plaza);
+        asistencia.setTurno(turno);
+        asistencia.setControlador(controlador);
+        asistencia.setFecha(request.fecha());
+        asistencia.setProgramados(programados);
+        asistencia.setPresentes(presentes);
+        asistencia.setNotas(request.notas());
+
+        asistenciaRepository.saveAndFlush(
+                asistencia
+        );
+
+        /*
+         * =====================================================
+         * REEMPLAZAR AUSENCIAS
+         * =====================================================
+         *
+         * Eliminamos las anteriores y volvemos a crear
+         * las enviadas desde el formulario de edición.
+         */
+        ausenciaRepository
+                .deleteByAsistenciaId(id);
+
+        ausenciaRepository.flush();
+
+        /*
+         * Crear las nuevas ausencias.
+         */
+        for (AusenciaRequest ausenciaRequest
+                : ausencias) {
+
+            Trabajador trabajador =
+                    trabajadorRepository
+                            .findById(
+                                    ausenciaRequest
+                                            .trabajadorId()
+                            )
+                            .orElseThrow(() ->
+                                    new ResourceNotFoundException(
+                                            "Trabajador no encontrado: "
+                                                    + ausenciaRequest
+                                                    .trabajadorId()
+                                    )
+                            );
+
+            MotivoAusencia motivo =
+                    motivoRepository
+                            .findById(
+                                    ausenciaRequest
+                                            .motivoId()
+                            )
+                            .orElseThrow(() ->
+                                    new ResourceNotFoundException(
+                                            "Motivo no encontrado: "
+                                                    + ausenciaRequest
+                                                    .motivoId()
+                                    )
+                            );
+
+            AsistenciaAusencia ausencia =
+                    new AsistenciaAusencia();
+
+            ausencia.setAsistencia(
+                    asistencia
+            );
+
+            ausencia.setTrabajador(
+                    trabajador
+            );
+
+            ausencia.setMotivo(
+                    motivo
+            );
+
+            ausencia.setObservacion(
+                    ausenciaRequest
+                            .observacion()
+            );
+
+            ausenciaRepository.save(
+                    ausencia
+            );
+        }
+
+        /*
+         * Asegurar que las nuevas ausencias
+         * estén guardadas antes de generar
+         * la respuesta.
+         */
+        ausenciaRepository.flush();
+
+        /*
+         * Las evidencias NO se modifican aquí.
+         *
+         * Se administran mediante:
+         *
+         * POST   /{id}/evidencias
+         * DELETE /{id}/evidencias/{evidenciaId}
+         */
+        return obtenerPorId(id);
     }
 
     /*
@@ -218,31 +639,33 @@ public class AsistenciaService {
             MultipartFile archivo
     ) throws IOException {
 
-        System.out.println("1. Entrando a guardarEvidencia");
-
         AsistenciaRegistro asistencia =
-                asistenciaRepository.findById(asistenciaId)
+                asistenciaRepository
+                        .findById(asistenciaId)
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
                                         "Asistencia no encontrada"
                                 )
                         );
 
-        System.out.println("2. Asistencia encontrada: " + asistencia.getId());
-
-        System.out.println("3. Archivo: " + archivo.getOriginalFilename());
-        System.out.println("4. Tipo: " + archivo.getContentType());
-        System.out.println("5. Tamaño: " + archivo.getSize());
+        if (archivo == null || archivo.isEmpty()) {
+            throw new BusinessException(
+                    "Debe seleccionar una imagen"
+            );
+        }
 
         Map<String, Object> resultado =
-                cloudinaryService.subirImagen(archivo);
-
-        System.out.println("6. Respuesta Cloudinary: " + resultado);
+                cloudinaryService
+                        .subirImagen(
+                                archivo,
+                                "sigo/asistencia"
+                        );
 
         Object secureUrl =
                 resultado.get("secure_url");
 
-        System.out.println("7. URL Cloudinary: " + secureUrl);
+        Object publicId =
+                resultado.get("public_id");
 
         if (secureUrl == null) {
             throw new BusinessException(
@@ -250,19 +673,35 @@ public class AsistenciaService {
             );
         }
 
+        if (publicId == null) {
+            throw new BusinessException(
+                    "Cloudinary no devolvió el public_id de la imagen"
+            );
+        }
+
         AsistenciaEvidencia evidencia =
                 new AsistenciaEvidencia();
 
-        evidencia.setAsistencia(asistencia);
-        evidencia.setUrlArchivo(secureUrl.toString());
-        evidencia.setTipo("foto");
+        evidencia.setAsistencia(
+                asistencia
+        );
 
-        System.out.println("8. Guardando evidencia en BD");
+        evidencia.setUrlArchivo(
+                secureUrl.toString()
+        );
+
+        evidencia.setPublicId(
+                publicId.toString()
+        );
+
+        evidencia.setTipo(
+                "foto"
+        );
 
         AsistenciaEvidencia guardada =
-                evidenciaRepository.save(evidencia);
-
-        System.out.println("9. Evidencia guardada con ID: " + guardada.getId());
+                evidenciaRepository.save(
+                        evidencia
+                );
 
         return new EvidenciaResponse(
                 guardada.getId(),
@@ -272,12 +711,77 @@ public class AsistenciaService {
     }
 
     /*
+    *Eliminar evidencia
+    *
+     */
+    @Transactional
+    public void eliminarEvidencia(
+            Long asistenciaId,
+            Long evidenciaId
+    ) throws IOException {
+
+        AsistenciaEvidencia evidencia =
+                evidenciaRepository
+                        .findByIdAndAsistenciaId(
+                                evidenciaId,
+                                asistenciaId
+                        )
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Evidencia no encontrada"
+                                )
+                        );
+
+        /*
+         * Imágenes nuevas:
+         * eliminar también de Cloudinary.
+         */
+        if (evidencia.getPublicId() != null
+                && !evidencia
+                .getPublicId()
+                .isBlank()) {
+
+            Map<String, Object> resultado =
+                    cloudinaryService
+                            .eliminarImagen(
+                                    evidencia.getPublicId()
+                            );
+
+            Object estado =
+                    resultado.get("result");
+
+            if (estado != null
+                    && !"ok".equalsIgnoreCase(
+                    estado.toString()
+            )
+                    && !"not found".equalsIgnoreCase(
+                    estado.toString()
+            )) {
+
+                throw new BusinessException(
+                        "No se pudo eliminar la imagen de Cloudinary"
+                );
+            }
+        }
+
+        /*
+         * Finalmente eliminar la referencia
+         * de PostgreSQL.
+         */
+        evidenciaRepository.delete(
+                evidencia
+        );
+    }
+
+    /*
      * =========================================================
      * OBTENER ASISTENCIA POR ID
      * =========================================================
      */
     @Transactional(readOnly = true)
-    public AsistenciaResponse obtenerPorId(Long id) {
+    public AsistenciaResponse obtenerPorId(
+            Long id
+    ) {
 
         AsistenciaRegistro asistencia =
                 asistenciaRepository
@@ -295,12 +799,29 @@ public class AsistenciaService {
                         .map(ausencia ->
                                 new AusenciaResponse(
                                         ausencia.getId(),
-                                        ausencia.getTrabajador().getId(),
-                                        ausencia.getTrabajador().getCodigo(),
-                                        ausencia.getTrabajador().getNombreCompleto(),
-                                        ausencia.getMotivo().getId(),
-                                        ausencia.getMotivo().getNombre(),
-                                        ausencia.getObservacion()
+
+                                        ausencia
+                                                .getTrabajador()
+                                                .getId(),
+
+                                        ausencia
+                                                .getTrabajador()
+                                                .getCodigo(),
+
+                                        ausencia
+                                                .getTrabajador()
+                                                .getNombreCompleto(),
+
+                                        ausencia
+                                                .getMotivo()
+                                                .getId(),
+
+                                        ausencia
+                                                .getMotivo()
+                                                .getNombre(),
+
+                                        ausencia
+                                                .getObservacion()
                                 )
                         )
                         .toList();
@@ -318,24 +839,37 @@ public class AsistenciaService {
                         )
                         .toList();
 
-        /*
-         * Tu AsistenciaResponse también es un record.
-         */
         return new AsistenciaResponse(
                 asistencia.getId(),
 
-                asistencia.getPlaza().getId(),
-                asistencia.getPlaza().getCodigo(),
+                asistencia
+                        .getPlaza()
+                        .getId(),
 
-                asistencia.getTurno().getId(),
-                asistencia.getTurno().getCodigo(),
+                asistencia
+                        .getPlaza()
+                        .getCodigo(),
 
-                asistencia.getControlador().getId(),
-                asistencia.getControlador().getNombreCompleto(),
+                asistencia
+                        .getTurno()
+                        .getId(),
+
+                asistencia
+                        .getTurno()
+                        .getCodigo(),
+
+                asistencia
+                        .getControlador()
+                        .getId(),
+
+                asistencia
+                        .getControlador()
+                        .getNombreCompleto(),
 
                 asistencia.getFecha(),
 
                 asistencia.getProgramados(),
+
                 asistencia.getPresentes(),
 
                 asistencia.getProgramados()
@@ -346,6 +880,7 @@ public class AsistenciaService {
                 asistencia.getNotas(),
 
                 ausencias,
+
                 evidencias
         );
     }
@@ -354,31 +889,85 @@ public class AsistenciaService {
      * =========================================================
      * LISTAR ASISTENCIAS
      * =========================================================
+     *
+     * Si no se mandan fechas:
+     * inicio = hoy
+     * fin = hoy
+     *
+     * plazaId null:
+     * todas las plazas.
      */
     @Transactional(readOnly = true)
     public List<AsistenciaResponse> listar(
             LocalDate inicio,
-            LocalDate fin
+            LocalDate fin,
+            Long plazaId
     ) {
+
+        LocalDate hoy =
+                LocalDate.now();
 
         LocalDate fechaInicio =
                 inicio != null
                         ? inicio
-                        : LocalDate.of(2000, 1, 1);
+                        : hoy;
 
         LocalDate fechaFin =
                 fin != null
                         ? fin
-                        : LocalDate.of(2100, 12, 31);
+                        : hoy;
 
-        return asistenciaRepository
-                .findByFechaBetweenOrderByFechaDesc(
-                        fechaInicio,
-                        fechaFin
-                )
+        /*
+         * Evitar rangos incorrectos.
+         */
+        if (fechaInicio.isAfter(fechaFin)) {
+            throw new BusinessException(
+                    "La fecha inicial no puede ser posterior a la fecha final"
+            );
+        }
+
+        List<AsistenciaRegistro> registros;
+
+        /*
+         * Todas las plazas.
+         */
+        if (plazaId == null) {
+
+            registros =
+                    asistenciaRepository
+                            .findByFechaBetweenOrderByFechaDescIdDesc(
+                                    fechaInicio,
+                                    fechaFin
+                            );
+
+        } else {
+
+            /*
+             * Validar que la plaza exista.
+             */
+            if (!plazaRepository
+                    .existsById(plazaId)) {
+
+                throw new ResourceNotFoundException(
+                        "Plaza no encontrada"
+                );
+            }
+
+            registros =
+                    asistenciaRepository
+                            .findByFechaBetweenAndPlazaIdOrderByFechaDescIdDesc(
+                                    fechaInicio,
+                                    fechaFin,
+                                    plazaId
+                            );
+        }
+
+        return registros
                 .stream()
-                .map(asistencia ->
-                        obtenerPorId(asistencia.getId())
+                .map(registro ->
+                        obtenerPorId(
+                                registro.getId()
+                        )
                 )
                 .toList();
     }
@@ -403,13 +992,24 @@ public class AsistenciaService {
         String puesto =
                 trabajador.getPuesto() == null
                         ? ""
-                        : trabajador.getPuesto().getNombre();
+                        : trabajador
+                        .getPuesto()
+                        .getNombre();
 
-        if (!puesto.equalsIgnoreCase("Controlador")
-                && !puesto.equalsIgnoreCase("Supervisor")) {
+        boolean puestoValido =
+                puesto.equalsIgnoreCase(
+                        "Controlador"
+                )
+                        || puesto.equalsIgnoreCase(
+                        "Controlador ATF"
+                )
+                        || puesto.equalsIgnoreCase(
+                        "Supervisor"
+                );
 
+        if (!puestoValido) {
             throw new BusinessException(
-                    "El responsable debe ser Controlador o Supervisor"
+                    "El responsable debe ser Controlador, Controlador ATF o Supervisor"
             );
         }
     }
