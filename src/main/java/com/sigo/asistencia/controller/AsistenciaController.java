@@ -138,6 +138,7 @@ public class AsistenciaController {
      * form-data
      *
      * file = imagen
+     * tipo = CALENTAMIENTO | INICIO_TURNO | TAPONES_AUDITIVOS
      */
     @PostMapping(
             value = "/{id}/evidencias",
@@ -145,13 +146,15 @@ public class AsistenciaController {
     )
     public ResponseEntity<EvidenciaResponse> subirEvidencia(
             @PathVariable Long id,
-            @RequestParam("file") MultipartFile file
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("tipo") String tipo
     ) throws IOException {
 
         return ResponseEntity.ok(
                 asistenciaService.guardarEvidencia(
                         id,
-                        file
+                        file,
+                        tipo
                 )
         );
     }

@@ -636,9 +636,13 @@ public class AsistenciaService {
     @Transactional
     public EvidenciaResponse guardarEvidencia(
             Long asistenciaId,
-            MultipartFile archivo
+            MultipartFile archivo,
+            String tipo
     ) throws IOException {
 
+        /*
+         * Buscar la asistencia.
+         */
         AsistenciaRegistro asistencia =
                 asistenciaRepository
                         .findById(asistenciaId)
@@ -648,12 +652,45 @@ public class AsistenciaService {
                                 )
                         );
 
+        /*
+         * Validar archivo.
+         */
         if (archivo == null || archivo.isEmpty()) {
             throw new BusinessException(
                     "Debe seleccionar una imagen"
             );
         }
 
+        /*
+         * =========================================================
+         * VALIDAR TIPO DE EVIDENCIA
+         * =========================================================
+         *
+         * Cada fotografía debe quedar identificada para que
+         * posteriormente el PDF no dependa del orden en que
+         * PostgreSQL devuelva las evidencias.
+         */
+        String tipoNormalizado =
+                tipo == null
+                        ? ""
+                        : tipo.trim().toUpperCase();
+
+        Set<String> tiposPermitidos =
+                Set.of(
+                        "CALENTAMIENTO",
+                        "INICIO_TURNO",
+                        "TAPONES_AUDITIVOS"
+                );
+
+        if (!tiposPermitidos.contains(tipoNormalizado)) {
+            throw new BusinessException(
+                    "Tipo de evidencia no válido: " + tipo
+            );
+        }
+
+        /*
+         * Subir imagen a Cloudinary.
+         */
         Map<String, Object> resultado =
                 cloudinaryService
                         .subirImagen(
@@ -679,6 +716,9 @@ public class AsistenciaService {
             );
         }
 
+        /*
+         * Crear evidencia.
+         */
         AsistenciaEvidencia evidencia =
                 new AsistenciaEvidencia();
 
@@ -694,15 +734,30 @@ public class AsistenciaService {
                 publicId.toString()
         );
 
+        /*
+         * IMPORTANTE:
+         *
+         * Antes:
+         *
+         * evidencia.setTipo("foto");
+         *
+         * Ahora guardamos el tipo real.
+         */
         evidencia.setTipo(
-                "foto"
+                tipoNormalizado
         );
 
+        /*
+         * Guardar en PostgreSQL.
+         */
         AsistenciaEvidencia guardada =
                 evidenciaRepository.save(
                         evidencia
                 );
 
+        /*
+         * Retornar evidencia guardada.
+         */
         return new EvidenciaResponse(
                 guardada.getId(),
                 guardada.getUrlArchivo(),
